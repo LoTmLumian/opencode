@@ -134,7 +134,7 @@ describe("CodeModeInstructions.render", () => {
     expect(partial).toContain("- orders (1 tool, none shown)")
     expect(partial).toContain("The tools listed below cannot be called directly, and neither can `search`.")
     expect(partial).toContain(
-      "The catalog is partial. Before calling a tool that is not listed below, find it with the global `search(...)` function (not `tools.search`). Do not guess tool names.",
+      "The catalog is partial. Before calling a tool that is not listed below, find it with the global `search(...)` function. Do not guess tool names.",
     )
     expect(partial).toContain("- search({")
     expect(partial).toContain("  /** @integer @exclusiveMinimum 0 */\n  limit?: number,")
