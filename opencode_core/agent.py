@@ -204,8 +204,11 @@ class AgentLoop:
     def _client_for(self, request: LLMRequest) -> LLMClient:
         """Return a client for the request's provider.
 
-        A caller-supplied ``client_factory`` wins; otherwise we fall back to
-        the provider factory from `opencode_ai.providers`.
+        A caller-supplied ``client_factory`` wins; otherwise the provider is
+        resolved from the process-wide `ProviderRegistry` (built-in defaults
+        merged with any config file loaded by the CLI/server), which maps a
+        provider id like ``deepseek`` to the right protocol, base URL and
+        API key environment variable.
         """
         if self.client_factory is not None:
             provider = request.provider or ""
@@ -213,15 +216,12 @@ class AgentLoop:
                 self._clients[provider] = self.client_factory(provider)
             return self._clients[provider]
 
-        from opencode_ai.providers.base import build_client
-        from opencode_schema.provider import ProviderConfig
+        from opencode_ai.providers.registry import default_registry
 
-        config = ProviderConfig(
-            id=request.provider or "openai",
-            protocol="openai",
-            api_key_env="OPENAI_API_KEY",
-        )
-        return build_client(config)
+        provider = request.provider or "openai"
+        if provider not in self._clients:
+            self._clients[provider] = default_registry().build_client(provider)
+        return self._clients[provider]
 
     async def _execute_tools(self, session_id: str, response: LLMResponse) -> list[ToolMessage]:
         """Execute every tool call in `response` and persist the results.
@@ -447,3 +447,4 @@ class AgentLoop:
     async def _publish(self, event: Event) -> None:
         """Publish an event and await its subscribers."""
         await self.bus.publish(event)
+

@@ -24,18 +24,37 @@ app.add_typer(session_app, name="session")
 
 
 # ---------------------------------------------------------------------------
-# 已知 provider / model 的静态登记（教学用途：opencode 的 models 命令会读取
-# 实际注册的 provider 包；这里给出一个简化的内置列表，便于演示）。
+# 配置加载（provider / model 登记）
 # ---------------------------------------------------------------------------
-_KNOWN_PROVIDERS: list[tuple[str, str, list[str]]] = [
-    ("openai", "OpenAI", ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"]),
-    ("anthropic", "Anthropic", ["claude-sonnet-4", "claude-opus-4", "claude-haiku-3"]),
+_DEFAULT_CONFIG_PATHS: list[Path] = [
+    Path("opencode.json"),
+    Path("config.json"),
+    Path("examples/config.example.json"),
 ]
 
 
 def default_db_path() -> Path:
     """默认数据目录下的 SQLite 文件。"""
     return Path.home() / ".opencode-python" / "opencode.db"
+
+
+def load_config(path: str | None = None) -> dict:
+    """Load a provider/config JSON file into a dict.
+
+    When ``path`` is ``None``, probe the well-known locations (in order) and
+    use the first that exists. Returns ``{}`` when nothing is found.
+    """
+    import json
+
+    candidates = [Path(path)] if path else _DEFAULT_CONFIG_PATHS
+    for candidate in candidates:
+        if candidate.is_file():
+            try:
+                return json.loads(candidate.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                typer.echo(f"warning: ignoring invalid config {candidate}", err=True)
+                return {}
+    return {}
 
 
 # ---------------------------------------------------------------------------
@@ -45,8 +64,14 @@ def default_db_path() -> Path:
 
 def _build_app(db: str | None, config: dict | None = None) -> App:
     """构造本地 App。db 未指定时使用默认数据目录。"""
+    from opencode_ai.providers.registry import default_registry
+
+    cfg = config or {}
+    # 把配置文件里的 provider 合并进进程级注册表，AgentLoop 建客户端时
+    # 才能按 provider id 拿到正确的 base_url / api_key_env。
+    default_registry().merge(cfg)
     db_path = Path(db) if db else default_db_path()
-    return App(db_path=db_path, config=config)
+    return App(db_path=db_path, config=cfg)
 
 
 def _prompt_from_stdin() -> str:
@@ -74,6 +99,7 @@ def run(
     model: str = typer.Option(None, "--model", "-m", help="Model to use, e.g. openai/gpt-4o"),
     agent: str = typer.Option("build", "--agent", "-a", help="Agent to use"),
     db: str = typer.Option(None, "--db", help="Database path"),
+    config: str = typer.Option(None, "--config", "-c", help="Path to a JSON config file"),
 ) -> None:
     """Run the agent once with a prompt (or interactively if no prompt)."""
     # 无参数：优先读 stdin 管道；stdin 非 TTY 且非空则作为一次性 prompt，
@@ -83,7 +109,7 @@ def run(
         if piped:
             prompt = piped
 
-    app_obj = _build_app(db)
+    app_obj = _build_app(db, load_config(config))
     try:
         if prompt is None:
             asyncio.run(interactive(app_obj))
@@ -142,9 +168,10 @@ def api(
     host: str = typer.Option("127.0.0.1", "--host"),
     port: int = typer.Option(3456, "--port", "-p"),
     db: str = typer.Option(None, "--db"),
+    config: str = typer.Option(None, "--config", "-c", help="Path to a JSON config file"),
 ) -> None:
     """Start the FastAPI server."""
-    app_obj = _build_app(db)
+    app_obj = _build_app(db, load_config(config))
     # uvicorn 前台运行（阻塞直到 Ctrl-C）。
     app_obj.start(host=host, port=port)
 
@@ -224,12 +251,24 @@ def _message_summary(msg) -> str:
 
 
 @app.command()
-def models() -> None:
-    """List known providers/models."""
-    for pid, name, model_ids in _KNOWN_PROVIDERS:
-        typer.echo(f"{pid} ({name}):")
-        for mid in model_ids:
-            typer.echo(f"  {pid}/{mid}")
+def models(
+    config: str = typer.Option(None, "--config", "-c", help="Path to a JSON config file"),
+) -> None:
+    """List known providers/models (built-ins + config file)."""
+    from opencode_ai.providers.registry import ProviderRegistry
+
+    registry = ProviderRegistry.from_mapping(load_config(config))
+    for definition in registry.definitions():
+        cfg = registry.config(definition.id)
+        label = f"{definition.id} ({definition.name})"
+        if cfg is not None and cfg.base_url:
+            label += f" [{cfg.base_url}]"
+        typer.echo(label)
+        models = list(definition.models)
+        if not models:
+            models = ["(no known models)"]
+        for mid in models:
+            typer.echo(f"  {definition.id}/{mid}")
 
 
 # ---------------------------------------------------------------------------
@@ -249,3 +288,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

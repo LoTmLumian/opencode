@@ -15,7 +15,6 @@ from .client import (
     is_provider_error,
 )
 from .messages import Message, ToolCallPart, ToolDefinition, ToolResultPart
-from .providers.base import build_client
 
 __all__ = ["generate", "stream", "loop", "LoopOptions", "ExecutableTool", "to_definitions"]
 
@@ -55,26 +54,15 @@ def to_definitions(tools: list[ExecutableTool]) -> list[ToolDefinition]:
 def _client_for(request: LLMRequest) -> LLMClient:
     """Construct an `LLMClient` for the request's provider.
 
-    The provider id selects the wire protocol (``anthropic`` vs the default
-    OpenAI-compatible protocol) and the API key environment variable. Base
-    URL is left to the client's default when not otherwise configured.
+    The provider id is resolved from the process-wide `ProviderRegistry`,
+    which maps it to the right wire protocol, base URL and API key
+    environment variable (e.g. ``deepseek`` -> OpenAI-compatible protocol +
+    ``DEEPSEEK_API_KEY``).
     """
-    from opencode_schema.provider import ProviderConfig
+    from .providers.registry import default_registry
 
-    provider = (request.provider or "").lower()
-    if provider == "anthropic":
-        config = ProviderConfig(
-            id="anthropic",
-            protocol="anthropic",
-            api_key_env="ANTHROPIC_API_KEY",
-        )
-    else:
-        config = ProviderConfig(
-            id=provider or "openai",
-            protocol="openai",
-            api_key_env="OPENAI_API_KEY",
-        )
-    return build_client(config)
+    provider = (request.provider or "openai").lower()
+    return default_registry().build_client(provider)
 
 
 async def generate(
@@ -203,3 +191,4 @@ async def loop(
 
     async for event in step(request, 0):
         yield event
+

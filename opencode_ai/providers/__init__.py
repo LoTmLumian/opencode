@@ -8,5 +8,7 @@ for a given `ProviderConfig`.
 """
 
 from .base import ProtocolError, build_client, make_client
+from .registry import ProviderRegistry, default_registry
 
-__all__ = ["ProtocolError", "build_client", "make_client"]
+__all__ = ["ProtocolError", "build_client", "make_client", "ProviderRegistry", "default_registry"]
+
