@@ -121,9 +121,8 @@ describe("CodeModeInstructions.render", () => {
     expect(instructions).toContain("- orders (1 tool)")
     expect(instructions).toContain(`  - ${lookup.signature} // Look up an order by ID`)
     expect(instructions).not.toContain("search")
-    expect(instructions).toContain("Your regular tools (such as `read`, `edit`, `shell` and `grep`) are separate")
     expect(instructions).toContain(
-      "The tools listed below cannot be called directly. They only work inside code you pass to `execute`.",
+      "The tools listed below only work as JavaScript inside the `execute` tool. Every other tool you have is a normal tool call: call it directly, never inside `execute`.",
     )
     expect(instructions).toContain("The catalog is complete. Do not guess tool names.")
   })
@@ -132,7 +131,9 @@ describe("CodeModeInstructions.render", () => {
     const partial = render([lookup], 0)
     expect(partial).toContain("## Code Mode tools (call only inside `execute`)")
     expect(partial).toContain("- orders (1 tool, none shown)")
-    expect(partial).toContain("The tools listed below cannot be called directly, and neither can `search`.")
+    expect(partial).toContain(
+      "The tools listed below, and `search`, only work as JavaScript inside the `execute` tool.",
+    )
     expect(partial).toContain(
       "The catalog is partial. Before calling a tool that is not listed below, find it with the global `search(...)` function. Do not guess tool names.",
     )

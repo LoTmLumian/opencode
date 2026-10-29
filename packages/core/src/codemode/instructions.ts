@@ -8,9 +8,7 @@ import { CodeModeCatalog } from "./catalog.js"
 // prettier-ignore
 const prompt = (hasMoreTools: boolean) => `# Code Mode
 
-Code Mode adds the extra tools listed below, which you call from JavaScript inside the \`execute\` tool. Your regular tools (such as \`read\`, \`edit\`, \`shell\` and \`grep\`) are separate: keep calling them directly as usual. They do not exist inside \`execute\`.
-
-The tools listed below cannot be called directly${hasMoreTools ? ", and neither can \`search\`. Both" : ". They"} only work inside code you pass to \`execute\`.
+The tools listed below${hasMoreTools ? ", and \`search\`," : ""} only work as JavaScript inside the \`execute\` tool. Every other tool you have is a normal tool call: call it directly, never inside \`execute\`.
 
 ${hasMoreTools ? `The catalog is partial. Before calling a tool that is not listed below, find it with the global \`search(...)\` function. Do not guess tool names. Each result's \`path\` is the complete call expression: write it out as code, for example \`await tools.ns.tool_name({ ... })\`. Do not use it as a key such as \`tools[path]\`.
 
